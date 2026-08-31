@@ -1,0 +1,482 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Netra-X - Security Operations Center</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0e17; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        .dashboard { max-width: 1400px; margin: 0 auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border: 1px solid #00ff41; border-radius: 8px; margin-bottom: 20px; }
+        .logo { font-size: 28px; font-weight: bold; }
+        .logo span { font-size: 12px; opacity: 0.5; display: block; }
+        .status { display: flex; align-items: center; gap: 10px; padding: 8px 20px; border: 1px solid rgba(0,255,65,0.2); border-radius: 25px; cursor: pointer; }
+        .status-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+        .green { background: #00ff41; box-shadow: 0 0 20px rgba(0,255,65,0.5); }
+        .red { background: #ff0044; box-shadow: 0 0 30px rgba(255,0,68,0.8); }
+        
+        .alert-banner { display: none; background: #ff0044; border-radius: 8px; padding: 20px; margin-bottom: 20px; color: white; text-align: center; font-size: 24px; font-weight: bold; animation: pulse 0.5s ease-in-out infinite alternate; }
+        @keyframes pulse { from { box-shadow: 0 0 20px rgba(255,0,68,0.3); } to { box-shadow: 0 0 60px rgba(255,0,68,0.6); } }
+        .alert-banner.active { display: block; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: rgba(0,255,65,0.02); border: 1px solid rgba(0,255,65,0.08); border-radius: 8px; padding: 15px; text-align: center; cursor: pointer; }
+        .stat-card:hover { border-color: rgba(0,255,65,0.2); }
+        .stat-value { font-size: 32px; font-weight: bold; }
+        .stat-label { font-size: 11px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .controls input, .controls select { background: rgba(0,255,65,0.03); border: 1px solid rgba(0,255,65,0.1); color: #00ff41; padding: 10px 15px; border-radius: 6px; font-family: monospace; }
+        .btn { padding: 10px 20px; border-radius: 6px; border: 1px solid rgba(0,255,65,0.15); background: rgba(0,255,65,0.05); color: #00ff41; cursor: pointer; font-family: monospace; transition: all 0.3s; }
+        .btn:hover { background: rgba(0,255,65,0.1); border-color: #00ff41; }
+        .btn-danger { border-color: rgba(255,0,68,0.3); color: #ff0044; }
+        .btn-danger:hover { background: rgba(255,0,68,0.1); }
+        
+        .main-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .section { background: rgba(0,255,65,0.02); border: 1px solid rgba(0,255,65,0.06); border-radius: 8px; padding: 20px; }
+        .section-header { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid rgba(0,255,65,0.05); padding-bottom: 10px; }
+        .section-header h2 { font-size: 14px; opacity: 0.5; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .traffic-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(0,255,65,0.02); }
+        .traffic-item .label { opacity: 0.5; }
+        .traffic-item .value { font-weight: bold; }
+        
+        .table-container { max-height: 400px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { padding: 10px; text-align: left; border-bottom: 1px solid rgba(0,255,65,0.1); opacity: 0.5; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; cursor: pointer; }
+        td { padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.02); }
+        tr:hover { background: rgba(0,255,65,0.02); }
+        
+        .badge { padding: 2px 12px; border-radius: 12px; font-size: 10px; font-weight: bold; display: inline-block; }
+        .badge-CRITICAL { color: #ff0044; border: 1px solid #ff0044; }
+        .badge-HIGH { color: #ff8800; border: 1px solid #ff8800; }
+        .badge-MEDIUM { color: #ffcc00; border: 1px solid #ffcc00; }
+        .badge-LOW { color: #00ff41; border: 1px solid #00ff41; }
+        
+        .severity-CRITICAL { color: #ff0044; }
+        .severity-HIGH { color: #ff8800; }
+        .severity-MEDIUM { color: #ffcc00; }
+        .severity-LOW { color: #00ff41; }
+        
+        .score-bar { display: inline-block; width: 60px; height: 4px; background: rgba(0,255,65,0.1); border-radius: 2px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+        .score-bar .fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+        .score-bar .fill.critical { background: #ff0044; }
+        .score-bar .fill.high { background: #ff8800; }
+        .score-bar .fill.medium { background: #ffcc00; }
+        .score-bar .fill.low { background: #00ff41; }
+        
+        .notification { position: fixed; bottom: 20px; right: 20px; background: rgba(0,255,65,0.1); border: 1px solid #00ff41; border-radius: 8px; padding: 15px 20px; display: none; max-width: 350px; }
+        .notification.show { display: block; animation: slideIn 0.5s ease; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .main-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🛡️ Netra-X<span>Network Intelligence · Extra Security</span></div>
+            <div class="status" onclick="toggleStatus()">
+                <span class="status-dot green" id="statusDot"></span>
+                <span id="statusText">SECURE</span>
+            </div>
+        </div>
+
+        <!-- Alert Banner -->
+        <div class="alert-banner" id="alertBanner">🚨 INTRUSION DETECTED</div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card" onclick="filterBySeverity('all')">
+                <div class="stat-label">📊 Total Alerts</div>
+                <div class="stat-value" id="totalAlerts">0</div>
+            </div>
+            <div class="stat-card" onclick="filterBySeverity('HIGH')">
+                <div class="stat-label">🟠 High Severity</div>
+                <div class="stat-value" id="highSeverity">0</div>
+            </div>
+            <div class="stat-card" onclick="filterBySeverity('CRITICAL')">
+                <div class="stat-label">🔴 Critical</div>
+                <div class="stat-value" id="criticalAlerts">0</div>
+            </div>
+            <div class="stat-card" onclick="clearAlerts()">
+                <div class="stat-label">🟢 Network Status</div>
+                <div class="stat-value" id="networkStatus">🟢 ONLINE</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="🔍 Search..." onkeyup="filterTable()">
+            <select id="severityFilter" onchange="filterTable()">
+                <option value="all">All Severities</option>
+                <option value="CRITICAL">🔴 CRITICAL</option>
+                <option value="HIGH">🟠 HIGH</option>
+                <option value="MEDIUM">🟡 MEDIUM</option>
+                <option value="LOW">🟢 LOW</option>
+            </select>
+            <button class="btn" onclick="refreshData()">🔄 Refresh</button>
+            <button class="btn" onclick="generateTestAlert()">📡 Generate Alert</button>
+            <button class="btn btn-danger" onclick="clearAlerts()">🗑️ Clear All</button>
+            <button class="btn" onclick="exportAlerts()">📤 Export</button>
+        </div>
+
+        <!-- Main -->
+        <div class="main-grid">
+            <div class="section">
+                <div class="section-header"><h2>📊 Live Traffic</h2><span style="font-size:10px;opacity:0.5;">Real-time</span></div>
+                <div class="traffic-item"><span class="label">Packets/sec</span><span class="value" id="packetsPerSec">0</span></div>
+                <div class="traffic-item"><span class="label">Bandwidth</span><span class="value" id="bandwidth">0 B/s</span></div>
+                <div class="traffic-item"><span class="label">Protocols</span><span class="value" id="protocols">TCP: 0 | UDP: 0</span></div>
+                <div class="traffic-item"><span class="label">Top Source</span><span class="value" id="topSource">-</span></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header"><h2>🚨 Security Events</h2><span id="alertCount" style="font-size:10px;opacity:0.5;">0 events</span></div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable(0)">⏱ Time</th>
+                                <th onclick="sortTable(1)">📡 Source</th>
+                                <th onclick="sortTable(2)">📋 Type</th>
+                                <th onclick="sortTable(3)">⚠️ Severity</th>
+                                <th onclick="sortTable(4)">📊 Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alertsBody">
+                            <tr><td colspan="5" style="text-align:center;opacity:0.3;padding:30px 0;">No alerts detected. Network is secure.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification">
+        <div id="notifTitle">🚨 New Alert</div>
+        <div id="notifBody">Alert detected</div>
+        <button onclick="this.parentElement.classList.remove('show')" style="background:none;border:none;color:#00ff41;cursor:pointer;float:right;">✕</button>
+    </div>
+
+    <script>
+        // ===== VARIABLES =====
+        let alertData = [];
+        let alertCount = 0;
+        let criticalCount = 0;
+        let highCount = 0;
+        let currentFilter = 'all';
+        let searchTerm = '';
+        let sortOrder = {};
+
+        // ===== CLOCK =====
+        setInterval(function() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString();
+        }, 1000);
+
+        // ===== SSE CONNECTION =====
+        const eventSource = new EventSource('/api/alerts/stream');
+        
+        eventSource.onopen = function() {
+            console.log('✅ SSE Connected');
+            document.getElementById('statusText').textContent = 'CONNECTED';
+        };
+
+        eventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'heartbeat') return;
+                
+                console.log('📩 Alert received:', data);
+                alertData.push(data);
+                alertCount++;
+                updateStats(data);
+                renderTable();
+                showNotification(data);
+                
+                if (data.severity === 'CRITICAL' || data.severity === 'HIGH') {
+                    showAlertBanner(data);
+                }
+            } catch(e) {
+                console.error('SSE error:', e);
+            }
+        };
+
+        eventSource.onerror = function() {
+            console.log('⚠️ SSE disconnected, reconnecting...');
+            setTimeout(function() {
+                new EventSource('/api/alerts/stream');
+            }, 3000);
+        };
+
+        // ===== UPDATE STATS =====
+        function updateStats(alert) {
+            document.getElementById('totalAlerts').textContent = alertCount;
+            document.getElementById('alertCount').textContent = alertCount + ' events';
+            
+            if (alert.severity === 'CRITICAL') {
+                criticalCount++;
+                document.getElementById('criticalAlerts').textContent = criticalCount;
+            }
+            if (alert.severity === 'HIGH' || alert.severity === 'CRITICAL') {
+                highCount++;
+                document.getElementById('highSeverity').textContent = highCount;
+            }
+        }
+
+        // ===== ALERT BANNER =====
+        function showAlertBanner(alert) {
+            document.getElementById('alertBanner').className = 'alert-banner active';
+            document.getElementById('alertBanner').textContent = '🚨 INTRUSION DETECTED - ' + alert.source_ip;
+            document.getElementById('statusDot').className = 'status-dot red';
+            document.getElementById('statusText').textContent = '🚨 INTRUSION';
+            document.getElementById('networkStatus').textContent = '🔴 INTRUSION';
+            
+            clearTimeout(window.alertTimeout);
+            window.alertTimeout = setTimeout(function() {
+                document.getElementById('alertBanner').className = 'alert-banner';
+                document.getElementById('statusDot').className = 'status-dot green';
+                document.getElementById('statusText').textContent = 'SECURE';
+                document.getElementById('networkStatus').textContent = '🟢 ONLINE';
+            }, 10000);
+        }
+
+        function dismissAlert() {
+            document.getElementById('alertBanner').className = 'alert-banner';
+            document.getElementById('statusDot').className = 'status-dot green';
+            document.getElementById('statusText').textContent = 'SECURE';
+            document.getElementById('networkStatus').textContent = '🟢 ONLINE';
+        }
+
+        function toggleStatus() {
+            if (document.getElementById('statusText').textContent === 'SECURE') {
+                generateTestAlert();
+            } else {
+                dismissAlert();
+            }
+        }
+
+        // ===== RENDER TABLE =====
+        function renderTable() {
+            const tbody = document.getElementById('alertsBody');
+            let filtered = [...alertData];
+            
+            if (currentFilter !== 'all') {
+                filtered = filtered.filter(a => a.severity === currentFilter);
+            }
+            
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                filtered = filtered.filter(a => 
+                    (a.source_ip && a.source_ip.includes(term)) ||
+                    (a.reason && a.reason.toLowerCase().includes(term)) ||
+                    (a.alert_type && a.alert_type.toLowerCase().includes(term))
+                );
+            }
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;opacity:0.3;padding:30px 0;">No alerts detected. Network is secure.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            filtered.slice(0, 50).forEach(function(alert) {
+                const row = document.createElement('tr');
+                const score = (alert.anomaly_score || 0);
+                const scorePercent = Math.round(score * 100);
+                let scoreClass = 'low';
+                if (score >= 0.9) scoreClass = 'critical';
+                else if (score >= 0.8) scoreClass = 'high';
+                else if (score >= 0.7) scoreClass = 'medium';
+                
+                row.innerHTML = 
+                    '<td>' + new Date(alert.timestamp).toLocaleTimeString() + '</td>' +
+                    '<td><strong>' + (alert.source_ip || 'unknown') + '</strong></td>' +
+                    '<td>' + (alert.alert_type || 'Anomaly').replace(/_/g, ' ') + '</td>' +
+                    '<td><span class="badge badge-' + alert.severity + '">' + alert.severity + '</span></td>' +
+                    '<td><span class="score-bar"><span class="fill ' + scoreClass + '" style="width:' + scorePercent + '%"></span></span>' + scorePercent + '%</td>';
+                
+                row.onclick = function() { showAlertDetails(alert); };
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('alertCount').textContent = filtered.length + ' events';
+        }
+
+        // ===== FILTERS =====
+        function filterTable() {
+            currentFilter = document.getElementById('severityFilter').value;
+            searchTerm = document.getElementById('searchInput').value;
+            renderTable();
+        }
+
+        function filterBySeverity(severity) {
+            document.getElementById('severityFilter').value = severity;
+            currentFilter = severity;
+            renderTable();
+        }
+
+        // ===== SORT =====
+        function sortTable(col) {
+            const order = sortOrder[col] || 'asc';
+            const keys = ['timestamp', 'source_ip', 'alert_type', 'severity', 'anomaly_score'];
+            const key = keys[col] || 'timestamp';
+            
+            alertData.sort((a, b) => {
+                let valA = a[key] || '';
+                let valB = b[key] || '';
+                if (key === 'anomaly_score') { valA = parseFloat(valA); valB = parseFloat(valB); }
+                if (key === 'timestamp') { valA = new Date(valA); valB = new Date(valB); }
+                if (valA < valB) return order === 'asc' ? -1 : 1;
+                if (valA > valB) return order === 'asc' ? 1 : -1;
+                return 0;
+            });
+            sortOrder[col] = order === 'asc' ? 'desc' : 'asc';
+            renderTable();
+        }
+
+        // ===== ALERT DETAILS =====
+        function showAlertDetails(alert) {
+            alert('📋 ALERT DETAILS\n\n' +
+                  'Source: ' + alert.source_ip + '\n' +
+                  'Destination: ' + (alert.dest_ip || 'N/A') + '\n' +
+                  'Type: ' + (alert.alert_type || 'Unknown') + '\n' +
+                  'Severity: ' + alert.severity + '\n' +
+                  'Score: ' + (alert.anomaly_score || 0).toFixed(3) + '\n' +
+                  'Reason: ' + alert.reason + '\n' +
+                  'Time: ' + new Date(alert.timestamp).toLocaleString());
+        }
+
+        // ===== GENERATE ALERT =====
+        function generateTestAlert() {
+            fetch('/api/generate_alert', { method: 'POST' })
+                .then(r => r.json())
+                .then(function(data) {
+                    if (data.success) {
+                        showNotification({ 
+                            severity: 'HIGH', 
+                            source_ip: data.source_ip, 
+                            reason: data.reason 
+                        });
+                        refreshData();
+                    }
+                })
+                .catch(function() {
+                    // Fallback
+                    const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+                    const severity = severities[Math.floor(Math.random() * 4)];
+                    const fakeAlert = {
+                        timestamp: new Date().toISOString(),
+                        source_ip: '192.168.1.' + Math.floor(Math.random() * 255),
+                        dest_ip: '10.0.0.' + Math.floor(Math.random() * 255),
+                        alert_type: ['ABNORMAL_SYN_ACTIVITY', 'HIGH_PORT_DIVERSITY', 'SCAN_PATTERN', 'BURST_TRAFFIC'][Math.floor(Math.random() * 4)],
+                        severity: severity,
+                        anomaly_score: 0.5 + Math.random() * 0.5,
+                        reason: 'Manual test alert - ' + severity + ' severity detected'
+                    };
+                    alertData.push(fakeAlert);
+                    alertCount++;
+                    updateStats(fakeAlert);
+                    renderTable();
+                    showNotification(fakeAlert);
+                    if (severity === 'CRITICAL' || severity === 'HIGH') {
+                        showAlertBanner(fakeAlert);
+                    }
+                });
+        }
+
+        // ===== NOTIFICATION =====
+        function showNotification(alert) {
+            const notif = document.getElementById('notification');
+            document.getElementById('notifTitle').textContent = '🚨 ' + alert.severity + ' Alert - ' + alert.source_ip;
+            document.getElementById('notifBody').textContent = alert.reason ? alert.reason.substring(0, 60) + '...' : 'Alert detected';
+            notif.className = 'notification show';
+            clearTimeout(window.notifTimeout);
+            window.notifTimeout = setTimeout(function() {
+                notif.classList.remove('show');
+            }, 5000);
+        }
+
+        // ===== REFRESH =====
+        function refreshData() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(function(data) {
+                    alertCount = data.total_alerts || 0;
+                    document.getElementById('totalAlerts').textContent = alertCount;
+                    document.getElementById('alertCount').textContent = alertCount + ' events';
+                    document.getElementById('highSeverity').textContent = data.high_severity || 0;
+                    document.getElementById('criticalAlerts').textContent = data.critical_alerts || 0;
+                    if (data.alerts && data.alerts.length > 0) {
+                        alertData = data.alerts;
+                        renderTable();
+                    }
+                })
+                .catch(function() {});
+            updateTrafficStats();
+        }
+
+        // ===== CLEAR ALERTS =====
+        function clearAlerts() {
+            if (confirm('⚠️ Clear all alerts?')) {
+                fetch('/api/clear_alerts', { method: 'POST' })
+                    .then(function() {
+                        alertData = [];
+                        alertCount = 0;
+                        criticalCount = 0;
+                        highCount = 0;
+                        document.getElementById('totalAlerts').textContent = '0';
+                        document.getElementById('highSeverity').textContent = '0';
+                        document.getElementById('criticalAlerts').textContent = '0';
+                        document.getElementById('alertCount').textContent = '0 events';
+                        renderTable();
+                        dismissAlert();
+                    })
+                    .catch(function() {});
+            }
+        }
+
+        // ===== EXPORT =====
+        function exportAlerts() {
+            if (alertData.length === 0) {
+                alert('No alerts to export');
+                return;
+            }
+            const dataStr = JSON.stringify(alertData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'netrax_alerts_' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ===== TRAFFIC STATS =====
+        function updateTrafficStats() {
+            fetch('/api/traffic')
+                .then(r => r.json())
+                .then(function(data) {
+                    document.getElementById('packetsPerSec').textContent = data.packets_per_sec || 0;
+                    document.getElementById('bandwidth').textContent = data.bandwidth || '0 B/s';
+                    document.getElementById('protocols').textContent = data.protocols || 'TCP: 0 | UDP: 0';
+                    document.getElementById('topSource').textContent = data.top_source || '-';
+                })
+                .catch(function() {});
+        }
+
+        // ===== INITIAL LOAD =====
+        refreshData();
+        setInterval(updateTrafficStats, 2000);
+        setInterval(refreshData, 10000);
+
+        console.log('🛡️ Netra-X Dashboard loaded');
+        console.log('📊 SSE endpoint: /api/alerts/stream');
+        console.log('📊 Stats endpoint: /api/stats');
+    </script>
+</body>
+</html>

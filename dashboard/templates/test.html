@@ -1,0 +1,54 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Netra-X Test</title>
+    <style>
+        body { background: #0a0e17; color: #00ff41; font-family: monospace; padding: 20px; }
+        .alert { border: 1px solid #ff0044; padding: 10px; margin: 5px 0; }
+        .critical { color: #ff0044; }
+        .high { color: #ff8800; }
+        .medium { color: #ffcc00; }
+        .low { color: #00ff41; }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Netra-X Alerts Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="alerts"></div>
+
+    <script>
+        // Check stats API
+        fetch('/api/stats')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('status').innerHTML = '✅ Connected! Found ' + (data.total_alerts || 0) + ' alerts';
+                if (data.alerts && data.alerts.length > 0) {
+                    let html = '<h2>Alerts:</h2>';
+                    data.alerts.forEach(a => {
+                        html += '<div class="alert ' + a.severity.toLowerCase() + '">' +
+                            a.severity + ': ' + a.source_ip + ' - ' + a.reason.substring(0, 50) +
+                            '</div>';
+                    });
+                    document.getElementById('alerts').innerHTML = html;
+                }
+            })
+            .catch(err => {
+                document.getElementById('status').innerHTML = '❌ Error: ' + err;
+            });
+
+        // SSE Connection
+        const eventSource = new EventSource('/api/alerts/stream');
+        eventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'heartbeat') return;
+                document.getElementById('status').innerHTML = '🚨 New alert received!';
+                const div = document.createElement('div');
+                div.className = 'alert ' + data.severity.toLowerCase();
+                div.textContent = data.severity + ': ' + data.source_ip + ' - ' + data.reason;
+                document.getElementById('alerts').prepend(div);
+            } catch(e) {}
+        };
+    </script>
+</body>
+</html>
